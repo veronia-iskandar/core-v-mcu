@@ -40,7 +40,8 @@ module cv32e40p_cs_registers import cv32e40p_pkg::*;
   parameter NUM_MHPMCOUNTERS = 1,
   parameter PULP_XPULP       = 0,
   parameter PULP_CLUSTER     = 0,
-  parameter DEBUG_TRIGGER_EN = 1
+  parameter DEBUG_TRIGGER_EN = 1,
+  parameter GDP_NVPE         = 1
 )
 (
   // Clock and Reset
@@ -59,10 +60,10 @@ module cv32e40p_cs_registers import cv32e40p_pkg::*;
   input  logic            csr_mtvec_init_i,
 
   // Interface to registers (SRAM like)
-  input  csr_num_e        csr_addr_i,
-  input  logic [31:0]     csr_wdata_i,
-  input  csr_opcode_e     csr_op_i,
-  output logic [31:0]     csr_rdata_o,
+  input  csr_num_e                   csr_addr_i,
+  input  logic [31:0]                csr_wdata_i,
+  input  logic  [1:0]                csr_op_i,
+  output logic [31:0]                csr_rdata_o,
 
   output logic [2:0]         frm_o,
   input  logic [C_FFLAG-1:0] fflags_i,
@@ -174,10 +175,14 @@ module cv32e40p_cs_registers import cv32e40p_pkg::*;
     | (0                               << 18)  // S - Supervisor mode implemented
     | (32'(PULP_SECURE)                << 20)  // U - User mode implemented
     | (32'(PULP_XPULP || PULP_CLUSTER) << 23)  // X - Non-standard extensions present
-    | (32'(MXL)                        << 30); // M-XLEN
+    | (32'(MXL)                        << 30)  // M-XLEN
+    | (32'(GDP_NVPE)                   << 21); // V - GDP Neural Vector Processor Subset
+
+  //vlenb
+  localparam logic [31:0] VLENB_VALUE = 32'd4;
 
   localparam MHPMCOUNTER_WIDTH  = 64;
-
+  
   // This local parameter when set to 1 makes the Perf Counters not compliant with RISC-V
   // as it does not implement mcycle and minstret
   // but only HPMCOUNTERs (depending on NUM_MHPMCOUNTERS)
@@ -346,7 +351,8 @@ if(PULP_SECURE==1) begin : gen_pulp_secure_read_logic
 
       // misa: machine isa register
       CSR_MISA: csr_rdata_int = MISA_VALUE;
-
+      //vlenb
+      CSR_VLENB: csr_rdata_int = VLENB_VALUE;
       // mie: machine interrupt enable
       CSR_MIE: begin
         csr_rdata_int = mie_q;
@@ -530,6 +536,8 @@ end else begin : gen_no_pulp_secure_read_logic // PULP_SECURE == 0
                                 };
       // misa: machine isa register
       CSR_MISA: csr_rdata_int = MISA_VALUE;
+      //vlenb
+      CSR_VLENB: csr_rdata_int = VLENB_VALUE;
       // mie: machine interrupt enable
       CSR_MIE: begin
         csr_rdata_int = mie_q;
@@ -1473,7 +1481,7 @@ end //PULP_SECURE
         end else if( (wcnt_gidx>2) && (wcnt_gidx<(NUM_MHPMCOUNTERS+3))) begin : gen_mhpmcounter
           // add +1 if any event is enabled and active
           assign mhpmcounter_write_increment[wcnt_gidx] = !mhpmcounter_write_lower[wcnt_gidx] &&
-                                                          !mhpmcounter_write_upper[wcnt_gidx] &&
+                                                          !mhpmcounter_write_upper[wcnt_gidx] && 
                                                           !mcountinhibit_q[wcnt_gidx] &&
                                                           |(hpm_events & mhpmevent_q[wcnt_gidx][NUM_HPM_EVENTS-1:0]);
         end else begin : gen_mhpmcounter_not_implemented
@@ -1482,7 +1490,7 @@ end //PULP_SECURE
       end else begin : gen_pulp_perf_counters
         // PULP PERF COUNTERS share all events in one register (not compliant with RISC-V)
         assign mhpmcounter_write_increment[wcnt_gidx] = !mhpmcounter_write_lower[wcnt_gidx] &&
-                                                        !mhpmcounter_write_upper[wcnt_gidx] &&
+                                                        !mhpmcounter_write_upper[wcnt_gidx] && 
                                                         !mcountinhibit_q[wcnt_gidx] &&
                                                         |(hpm_events & mhpmevent_q[wcnt_gidx][NUM_HPM_EVENTS-1:0]);
       end

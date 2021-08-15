@@ -25,16 +25,17 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*; import cv32e40p_fpu_pkg::*;
+module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*; import cv32e40p_fpu_pkg::*; import accelerator_pkg::*;
 #(
-  parameter PULP_XPULP        = 1,              // PULP ISA Extension (including PULP specific CSRs and hardware loop, excluding p.elw)
-  parameter PULP_CLUSTER      =  0,
+  parameter PULP_XPULP        = 0,              // PULP ISA Extension (including PULP specific CSRs and hardware loop, excluding p.elw)
+  parameter PULP_CLUSTER      = 0,
   parameter A_EXTENSION       = 0,
   parameter FPU               = 0,
   parameter PULP_SECURE       = 0,
   parameter USE_PMP           = 0,
   parameter APU_WOP_CPU       = 6,
-  parameter DEBUG_TRIGGER_EN  = 1
+  parameter DEBUG_TRIGGER_EN  = 1,
+  parameter GDP_NVPE          = 1
 )
 (
   // singals running to/from controller
@@ -76,7 +77,7 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
 
   // ALU signals
   output logic        alu_en_o,                // ALU enable
-  output alu_opcode_e alu_operator_o, // ALU operation selection
+  output logic [ALU_OP_WIDTH-1:0] alu_operator_o, // ALU operation selection
   output logic [2:0]  alu_op_a_mux_sel_o,      // operand a selection: reg value, PC, immediate or zero
   output logic [2:0]  alu_op_b_mux_sel_o,      // operand b selection: reg value or immediate
   output logic [1:0]  alu_op_c_mux_sel_o,      // operand c selection: reg value or jump target
@@ -90,7 +91,7 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
   output logic        is_subrot_o,
 
   // MUL related control signals
-  output mul_opcode_e mult_operator_o,         // Multiplication operation selection
+  output logic [2:0]  mult_operator_o,         // Multiplication operation selection
   output logic        mult_int_en_o,           // perform integer multiplication
   output logic        mult_dot_en_o,           // perform dot multiplication
   output logic [0:0]  mult_imm_mux_o,          // Multiplication immediate mux selector
@@ -110,6 +111,7 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
   output logic [APU_WOP_CPU-1:0]  apu_op_o,
   output logic [1:0]          apu_lat_o,
   output logic [2:0]          fp_rnd_mode_o,
+  output logic                apu_regfile_wb_o,
 
   // register file related signals
   output logic        regfile_mem_we_o,        // write enable for regfile
@@ -120,7 +122,7 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
   // CSR manipulation
   output logic        csr_access_o,            // access to CSR
   output logic        csr_status_o,            // access to xstatus CSR
-  output csr_opcode_e csr_op_o,                // operation to perform on CSR
+  output logic [1:0]  csr_op_o,                // operation to perform on CSR
   input  PrivLvl_t    current_priv_lvl_i,      // The current privilege level
 
   // LD/ST unit signals
@@ -131,6 +133,8 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
   output logic [1:0]  data_sign_extension_o,   // sign extension on read data from data memory / NaN boxing
   output logic [1:0]  data_reg_offset_o,       // offset in byte inside register for stores
   output logic        data_load_event_o,       // data request is in the special event range
+  input  logic        data_ready_i,            // Additional signal for single instruction apu loads
+  output logic        data_load_o,          
 
   // Atomic memory access
   output  logic [5:0] atop_o,
@@ -149,6 +153,8 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
   output logic [1:0]  ctrl_transfer_insn_in_id_o,   // control transfer instructio is decoded
   output logic [1:0]  ctrl_transfer_target_mux_sel_o,        // jump target selection
 
+  output logic apu_regfile_wb_disable_o,
+
   // HPM related control signals
   input  logic [31:0] mcounteren_i
 );
@@ -161,12 +167,18 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
   logic       csr_illegal;
   logic [1:0] ctrl_transfer_insn;
 
-  csr_opcode_e csr_op;
+  logic [1:0] csr_op;
 
   logic       alu_en;
   logic       mult_int_en;
   logic       mult_dot_en;
   logic       apu_en;
+  logic       apu_regfile_wb_disable;
+
+  logic [2:0] funct3;
+  logic [5:0] funct6;
+  assign funct3 = instr_rdata_i[14:12];
+  assign funct6 = instr_rdata_i[31:26];
 
   // this instruction needs floating-point rounding-mode verification
   logic check_fprm;
@@ -228,6 +240,7 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
     regfile_mem_we              = 1'b0;
     regfile_alu_we              = 1'b0;
     regfile_alu_waddr_sel_o     = 1'b1;
+    apu_regfile_wb_o            = 1'b1;
 
     prepost_useincr_o           = 1'b1;
 
@@ -280,6 +293,8 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
     mret_dec_o                  = 1'b0;
     uret_dec_o                  = 1'b0;
     dret_dec_o                  = 1'b0;
+
+    apu_regfile_wb_disable            = 1'b0;
 
     unique case (instr_rdata_i[6:0])
 
@@ -1756,6 +1771,8 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
           reg_fp_d_o       = 1'b1;
           fp_rnd_mode_o    = instr_rdata_i[14:12];
 
+          
+
           // Decode Formats
           unique case (instr_rdata_i[26:25])
             // FP32
@@ -1891,6 +1908,30 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
             data_req       = 1'b0;
             data_we_o      = 1'b0;
           end
+        end else if (GDP_NVPE) begin
+          // NVPE connects to APU interface
+          apu_en              = 1'b1;
+          alu_en              = 1'b0;
+          apu_lat_o           = 2'h3;  // Number of cycles
+
+          apu_op_o[1:0]       = 2'b10; // STORE-FP
+          apu_op_o[2]         = instr_rdata_i[25];
+          apu_op_o[5:3]       = instr_rdata_i[14:12];
+
+          apu_regfile_wb_o    = 1'b0;
+
+          rega_used_o         = 1'b1;  // Register A contains address
+          regb_used_o         = 1'b1;  
+          regc_used_o         = 1'b0;
+          regfile_mem_we      = 1'b0;  // Not writing to register file
+
+          alu_op_a_mux_sel_o  = OP_A_INSTRUCTION;
+          alu_op_b_mux_sel_o  = OP_B_REGA_OR_FWD;
+          alu_op_c_mux_sel_o  = OP_C_REGB_OR_FWD;
+
+          wfi_o = 1'b0;
+          apu_regfile_wb_disable = 1'b1;
+        // FPU!=1
         end
         // FPU!=1
         else
@@ -1909,9 +1950,6 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
           imm_b_mux_sel_o     = IMMB_I;
           alu_op_b_mux_sel_o  = OP_B_IMM;
 
-          // NaN boxing
-          data_sign_extension_o = 2'b10;
-
           // Decode data type
           unique case (instr_rdata_i[14:12])
             // flb - FP8 load
@@ -1928,8 +1966,31 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
                      else illegal_insn_o = 1'b1;
             default: illegal_insn_o = 1'b1;
           endcase
-        end
+        end else if (GDP_NVPE) begin
+          // NVPE connects to APU interface
+          apu_en              = 1'b1;
+          alu_en              = 1'b0;
+          apu_lat_o           = 2'h3;  // Number of cycles
+
+          apu_op_o[1:0]       = 2'b01; // LOAD-FP
+          apu_op_o[2]         = instr_rdata_i[25];
+          apu_op_o[5:3]       = instr_rdata_i[14:12];
+
+          apu_regfile_wb_o    = 1'b0;
+
+          rega_used_o         = 1'b1;  // Register A contains address
+          regb_used_o         = 1'b1;  
+          regc_used_o         = 1'b0;
+          regfile_mem_we      = 1'b0;  // Not writing to register file        
+
+          alu_op_a_mux_sel_o  = OP_A_INSTRUCTION;
+          alu_op_b_mux_sel_o  = OP_B_REGA_OR_FWD;
+          alu_op_c_mux_sel_o  = OP_C_REGB_OR_FWD;
+
+          wfi_o = 1'b0;
+          apu_regfile_wb_disable = 1'b1;
         // FPU!=1
+        end
         else
           illegal_insn_o = 1'b1;
       end
@@ -2225,6 +2286,50 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
 
             default: illegal_insn_o = 1'b1;
           endcase
+        end else if (GDP_NVPE) begin
+          // NVPE connects to APU interface
+          apu_en           = 1'b1;
+          alu_en           = 1'b0;
+          apu_lat_o        = 2'h3; // Number of cycles
+
+          apu_op_o[1:0]    = 2'b11; // OP-V
+          apu_op_o[2]      = instr_rdata_i[25];
+          apu_op_o[5:3]    = instr_rdata_i[14:12];
+
+          rega_used_o      = 1'b1;
+          regb_used_o      = 1'b1;
+          regc_used_o      = 1'b1;
+          regc_mux_o       = REGC_RD;
+
+          alu_op_a_mux_sel_o = OP_A_INSTRUCTION;
+          alu_op_b_mux_sel_o = OP_B_REGA_OR_FWD;
+          alu_op_c_mux_sel_o = OP_C_REGB_OR_FWD;
+
+          regfile_alu_we   = 1'b0;
+          apu_regfile_wb_disable = 1'b1;
+          
+          wfi_o = 1'b0; // Pipeline flush on every instruction
+
+          // Do any other instructions need to write to regfile?
+          // Specific instruction breakdown
+          if (funct3 == V_OPCFG) begin
+            apu_regfile_wb_disable = 1'b0;    
+            regfile_mem_we = 1'b1;
+          end else begin
+            // Look for all other OP-V instructions
+            case (funct6)
+              6'b010000: begin // VWXUNARY0 (vmv.x.s) 
+                apu_regfile_wb_disable = 1'b0;    
+                regfile_mem_we = 1'b1;
+              end
+          
+              default: begin
+                apu_regfile_wb_disable = 1'b1;    
+                regfile_mem_we = 1'b0;
+              end
+            endcase
+          end
+
         end else begin
           illegal_insn_o = 1'b1;
         end
@@ -2377,7 +2482,8 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
               CSR_MIE,
               CSR_MSCRATCH,
               CSR_MTVAL,
-              CSR_MIP :
+              CSR_MIP,
+              CSR_VLENB :
                 ; // do nothing, not illegal
 
             // Hardware Performance Monitor
@@ -2624,6 +2730,7 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
   assign hwlp_we_o                   = (deassert_we_i) ? 3'b0          : hwlp_we;
   assign csr_op_o                    = (deassert_we_i) ? CSR_OP_READ   : csr_op;
   assign ctrl_transfer_insn_in_id_o  = (deassert_we_i) ? BRANCH_NONE   : ctrl_transfer_insn;
+  assign apu_regfile_wb_disable_o          = (deassert_we_i) ? 1'b0          : apu_regfile_wb_disable;
 
   assign ctrl_transfer_insn_in_dec_o  = ctrl_transfer_insn;
   assign regfile_alu_we_dec_o         = regfile_alu_we;

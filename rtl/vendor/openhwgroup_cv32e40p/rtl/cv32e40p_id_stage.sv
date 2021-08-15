@@ -29,21 +29,22 @@
 
 module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
 #(
-  parameter PULP_XPULP        =  1,                     // PULP ISA Extension (including PULP specific CSRs and hardware loop, excluding p.elw)
+  parameter PULP_XPULP        =  0,                     // PULP ISA Extension (including PULP specific CSRs and hardware loop, excluding p.elw)
   parameter PULP_CLUSTER      =  0,
   parameter N_HWLP            =  2,
   parameter N_HWLP_BITS       =  $clog2(N_HWLP),
   parameter PULP_SECURE       =  0,
   parameter USE_PMP           =  0,
   parameter A_EXTENSION       =  0,
-  parameter APU               =  0,
+  parameter APU               =  1,
   parameter FPU               =  0,
   parameter PULP_ZFINX        =  0,
   parameter APU_NARGS_CPU     =  3,
   parameter APU_WOP_CPU       =  6,
   parameter APU_NDSFLAGS_CPU  = 15,
   parameter APU_NUSFLAGS_CPU  =  5,
-  parameter DEBUG_TRIGGER_EN  =  1
+  parameter DEBUG_TRIGGER_EN  =  1,
+  parameter GDP_NVPE          =  1
 )
 (
     input  logic        clk,                    // Gated clock
@@ -109,20 +110,20 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
 
     // ALU
     output logic        alu_en_ex_o,
-    output alu_opcode_e alu_operator_ex_o,
+    output logic [ALU_OP_WIDTH-1:0] alu_operator_ex_o,
     output logic        alu_is_clpx_ex_o,
     output logic        alu_is_subrot_ex_o,
     output logic [ 1:0] alu_clpx_shift_ex_o,
 
     // MUL
-    output mul_opcode_e  mult_operator_ex_o,
-    output logic [31:0]  mult_operand_a_ex_o,
-    output logic [31:0]  mult_operand_b_ex_o,
-    output logic [31:0]  mult_operand_c_ex_o,
-    output logic         mult_en_ex_o,
-    output logic         mult_sel_subword_ex_o,
-    output logic [ 1:0]  mult_signed_mode_ex_o,
-    output logic [ 4:0]  mult_imm_ex_o,
+    output logic [ 2:0] mult_operator_ex_o,
+    output logic [31:0] mult_operand_a_ex_o,
+    output logic [31:0] mult_operand_b_ex_o,
+    output logic [31:0] mult_operand_c_ex_o,
+    output logic        mult_en_ex_o,
+    output logic        mult_sel_subword_ex_o,
+    output logic [ 1:0] mult_signed_mode_ex_o,
+    output logic [ 4:0] mult_imm_ex_o,
 
     output logic [31:0] mult_dot_op_a_ex_o,
     output logic [31:0] mult_dot_op_b_ex_o,
@@ -152,7 +153,7 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
 
     // CSR ID/EX
     output logic        csr_access_ex_o,
-    output csr_opcode_e csr_op_ex_o,
+    output logic [1:0]  csr_op_ex_o,
     input  PrivLvl_t    current_priv_lvl_i,
     output logic        csr_irq_sec_o,
     output logic [5:0]  csr_cause_o,
@@ -183,6 +184,10 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
     output logic [1:0]  data_sign_ext_ex_o,
     output logic [1:0]  data_reg_offset_ex_o,
     output logic        data_load_event_ex_o,
+    input  logic        data_ready_i,
+    input  logic [31:0] data_rdata_i,
+    output  logic        data_load_o,
+    output logic        apu_regfile_wb_disable_o,
 
     output logic        data_misaligned_ex_o,
 
@@ -225,6 +230,7 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
     input  logic [5:0]  regfile_waddr_wb_i,
     input  logic        regfile_we_wb_i,
     input  logic [31:0] regfile_wdata_wb_i, // From wb_stage: selects data from data memory, ex_stage result and sp rdata
+    output logic        apu_regfile_wb_ex_o,
 
     input  logic [5:0]  regfile_alu_waddr_fw_i,
     input  logic        regfile_alu_we_fw_i,
@@ -350,7 +356,7 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
 
   // ALU Control
   logic        alu_en;
-  alu_opcode_e alu_operator;
+  logic [ALU_OP_WIDTH-1:0] alu_operator;
   logic [2:0]  alu_op_a_mux_sel;
   logic [2:0]  alu_op_b_mux_sel;
   logic [1:0]  alu_op_c_mux_sel;
@@ -361,7 +367,7 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
   logic [1:0]  ctrl_transfer_target_mux_sel;
 
   // Multiplier Control
-  mul_opcode_e mult_operator;    // multiplication operation selection
+  logic [2:0]  mult_operator;    // multiplication operation selection
   logic        mult_en;          // multiplication is used instead of ALU
   logic        mult_int_en;      // use integer multiplier
   logic        mult_sel_subword; // Select a subword when doing multiplications
@@ -401,6 +407,7 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
   logic [1:0]  data_reg_offset_id;
   logic        data_req_id;
   logic        data_load_event_id;
+  logic        apu_regfile_wb_disable_id;
 
   // Atomic memory instruction
   logic [5:0]  atop_id;
@@ -421,7 +428,7 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
 
   // CSR control
   logic        csr_access;
-  csr_opcode_e csr_op;
+  logic [1:0]  csr_op;
   logic        csr_status;
 
   logic        prepost_useincr;
@@ -480,6 +487,8 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
   logic        id_valid_q;
   logic        minstret;
   logic        perf_pipeline_stall;
+
+  logic apu_regfile_wb;
 
   assign instr = instr_rdata_i;
 
@@ -604,6 +613,8 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
       OP_A_REGC_OR_FWD:  alu_operand_a = operand_c_fw_id;
       OP_A_CURRPC:       alu_operand_a = pc_id_i;
       OP_A_IMM:          alu_operand_a = imm_a;
+      OP_A_INSTRUCTION:  alu_operand_a = instr_rdata_i;
+      OP_A_RDATA:        alu_operand_a = data_rdata_i;
       default:           alu_operand_a = operand_a_fw_id;
     endcase; // case (alu_op_a_mux_sel)
   end
@@ -706,6 +717,7 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
       OP_C_REGC_OR_FWD:  operand_c = operand_c_fw_id;
       OP_C_REGB_OR_FWD:  operand_c = operand_b_fw_id;
       OP_C_JT:           operand_c = jump_target;
+      OP_C_INSTRUCTION:  operand_c = instr_rdata_i;
       default:           operand_c = operand_c_fw_id;
     endcase // case (alu_op_c_mux_sel)
   end
@@ -800,7 +812,32 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
       assign apu_waddr = regfile_alu_waddr_id;
 
       // flags
-      assign apu_flags = (FPU == 1) ? {fpu_int_fmt, fpu_src_fmt, fpu_dst_fmt, fp_rnd_mode} : '0;
+      if(FPU == 1) begin
+        assign apu_flags = {fpu_int_fmt, fpu_src_fmt, fpu_dst_fmt, fp_rnd_mode};
+      end else if(GDP_NVPE == 1) begin
+        always_comb begin
+          unique case (apu_op[1:0])
+            2'd0: begin // V-CUSTOM  
+              apu_flags = {15'd0};
+            end
+            2'd1, 
+            2'd2: begin // LOAD-FP / STORE-FP
+              apu_flags = {3'd0, instr_rdata_i[31:29], 9'd0}; // nf
+            end
+            2'd3: begin // OP-V
+              if(apu_op[5:3] == 7) 
+                apu_flags = {4'd0, instr_rdata_i[30:20]}; // zimm1
+              else 
+                apu_flags = {3'd0, instr_rdata_i[31:26], 6'd0}; // funct6
+            end
+            default: begin
+              apu_flags = {15'd0};
+            end
+          endcase
+        end
+      end else begin
+        assign apu_flags = {15'd0};
+      end
 
       // dependency checks
       always_comb begin
@@ -1036,6 +1073,7 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
     .regfile_alu_we_o                ( regfile_alu_we_id         ),
     .regfile_alu_we_dec_o            ( regfile_alu_we_dec_id     ),
     .regfile_alu_waddr_sel_o         ( regfile_alu_waddr_mux_sel ),
+    .apu_regfile_wb_o                ( apu_regfile_wb ),
 
     // CSR control signals
     .csr_access_o                    ( csr_access                ),
@@ -1051,6 +1089,10 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
     .data_sign_extension_o           ( data_sign_ext_id          ),
     .data_reg_offset_o               ( data_reg_offset_id        ),
     .data_load_event_o               ( data_load_event_id        ),
+    .apu_regfile_wb_disable_o              ( apu_regfile_wb_disable_id       ),
+
+    .data_ready_i                    ( data_ready_i ),
+    .data_load_o                     ( data_load_o  ),
 
     // Atomic memory access
     .atop_o                          ( atop_id                   ),
@@ -1218,7 +1260,6 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
     .regfile_we_ex_i                ( regfile_we_ex_o        ),
     .regfile_waddr_ex_i             ( regfile_waddr_ex_o     ),
     .regfile_we_wb_i                ( regfile_we_wb_i        ),
-
     // regfile port 2
     .regfile_alu_we_fw_i            ( regfile_alu_we_fw_i    ),
 
@@ -1254,7 +1295,9 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
     .wb_ready_i                     ( wb_ready_i             ),
 
     // Performance Counters
-    .perf_pipeline_stall_o          ( perf_pipeline_stall    )
+    .perf_pipeline_stall_o          ( perf_pipeline_stall    ),
+
+    .apu_regfile_wb_disable_i       ( apu_regfile_wb_disable_o )
   );
 
 
@@ -1429,7 +1472,7 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
       alu_is_clpx_ex_o            <= 1'b0;
       alu_is_subrot_ex_o          <= 1'b0;
 
-      mult_operator_ex_o          <= MUL_MAC32;
+      mult_operator_ex_o          <= '0;
       mult_operand_a_ex_o         <= '0;
       mult_operand_b_ex_o         <= '0;
       mult_operand_c_ex_o         <= '0;
@@ -1454,7 +1497,7 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
       apu_operands_ex_o[2]        <= '0;
       apu_flags_ex_o              <= '0;
       apu_waddr_ex_o              <= '0;
-
+      apu_regfile_wb_ex_o         <= '0;
 
       regfile_waddr_ex_o          <= 6'b0;
       regfile_we_ex_o             <= 1'b0;
@@ -1479,7 +1522,7 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
       pc_ex_o                     <= '0;
 
       branch_in_ex_o              <= 1'b0;
-
+      apu_regfile_wb_disable_o          <= 1'b0;
     end
     else if (data_misaligned_i) begin
       // misaligned data access case
@@ -1505,7 +1548,6 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
     end
     else begin
       // normal pipeline unstall case
-
       if (id_valid_o)
       begin // unstall the whole pipeline
         alu_en_ex_o                 <= alu_en;
@@ -1553,6 +1595,8 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
           apu_operands_ex_o         <= apu_operands;
           apu_flags_ex_o            <= apu_flags;
           apu_waddr_ex_o            <= apu_waddr;
+          apu_regfile_wb_ex_o       <= apu_regfile_wb;
+          apu_regfile_wb_disable_o        <= apu_regfile_wb_disable_id;
         end
 
         regfile_we_ex_o             <= regfile_we_id;
@@ -1569,8 +1613,9 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
 
         csr_access_ex_o             <= csr_access;
         csr_op_ex_o                 <= csr_op;
-
+        
         data_req_ex_o               <= data_req_id;
+          
         if (data_req_id)
         begin // only needed for LSU when there is an active request
           data_we_ex_o              <= data_we_id;
@@ -1593,6 +1638,8 @@ module cv32e40p_id_stage import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*
       end else if(ex_ready_i) begin
         // EX stage is ready but we don't have a new instruction for it,
         // so we set all write enables to 0, but unstall the pipe
+
+        apu_regfile_wb_disable_o          <= 1'b0;
 
         regfile_we_ex_o             <= 1'b0;
 

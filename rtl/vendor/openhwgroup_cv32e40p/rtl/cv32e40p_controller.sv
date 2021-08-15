@@ -199,7 +199,9 @@ module cv32e40p_controller import cv32e40p_pkg::*;
   input  logic        wb_ready_i,                 // WB stage is ready
 
   // Performance Counters
-  output logic        perf_pipeline_stall_o       // stall due to elw extra cycles
+  output logic        perf_pipeline_stall_o,       // stall due to elw extra cycles
+
+  input logic apu_regfile_wb_disable_i
 );
 
   // FSM state encoding
@@ -1320,16 +1322,20 @@ endgenerate
 
     // Stall because of load operation
     if (
-          ( (data_req_ex_i == 1'b1) && (regfile_we_ex_i == 1'b1) ||
+          ( ((data_req_ex_i == 1'b1) && (regfile_we_ex_i == 1'b1) ||
            (wb_ready_i == 1'b0) && (regfile_we_wb_i == 1'b1)
           ) &&
           ( (reg_d_ex_is_reg_a_i == 1'b1) || (reg_d_ex_is_reg_b_i == 1'b1) || (reg_d_ex_is_reg_c_i == 1'b1) ||
-            (is_decoding_o && (regfile_we_id_i && !data_misaligned_i) && (regfile_waddr_ex_i == regfile_alu_waddr_id_i)) )
-       )
+            (is_decoding_o && (regfile_we_id_i && !data_misaligned_i) && (regfile_waddr_ex_i == regfile_alu_waddr_id_i)))) )
     begin
       deassert_we_o   = 1'b1;
       load_stall_o    = 1'b1;
-    end
+    end //else if(apu_regfile_wb_disable_i) begin
+      //deassert_we_o   = 1'b1;
+      //halt_if_o = 1'b1;
+      //halt_id_o = 1'b1;
+      //load_stall_o    = 1'b1;
+    //end
 
     // Stall because of jr path
     // - always stall if a result is to be forwarded to the PC
@@ -1430,7 +1436,7 @@ endgenerate
   end
 
   // wakeup from sleep conditions
-  assign wake_from_sleep_o = irq_wu_ctrl_i || debug_req_pending || debug_mode_q;
+  assign wake_from_sleep_o = irq_wu_ctrl_i || debug_req_pending || debug_mode_q || ~apu_stall_o;
 
   // debug mode
   assign debug_mode_o = debug_mode_q;

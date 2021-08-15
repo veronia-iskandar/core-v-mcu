@@ -34,7 +34,8 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
   parameter PULP_CLUSTER        =  0,                   // PULP Cluster interface (incl. p.elw)
   parameter FPU                 =  0,                   // Floating Point Unit (interfaced via APU interface)
   parameter PULP_ZFINX          =  0,                   // Float-in-General Purpose registers
-  parameter NUM_MHPMCOUNTERS    =  1
+  parameter NUM_MHPMCOUNTERS    =  1,
+  parameter GDP_NVPE            =  1
 )
 (
   // Clock and Reset
@@ -94,7 +95,8 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
 
   // CPU Control Signals
   input  logic        fetch_enable_i,
-  output logic        core_sleep_o
+  output logic        core_sleep_o,
+  input  logic        apu_core_halt
 );
 
   import cv32e40p_pkg::*;
@@ -122,7 +124,7 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
 
   localparam N_HWLP      = 2;
   localparam N_HWLP_BITS = $clog2(N_HWLP);
-  localparam APU         = (FPU==1) ? 1 : 0;
+  localparam APU         = (FPU==1 | GDP_NVPE==1) ? 1 : 0;
 
 
   // IF/ID signals
@@ -168,7 +170,7 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
 
   // ALU Control
   logic        alu_en_ex;
-  alu_opcode_e alu_operator_ex;
+  logic [ALU_OP_WIDTH-1:0] alu_operator_ex;
   logic [31:0] alu_operand_a_ex;
   logic [31:0] alu_operand_b_ex;
   logic [31:0] alu_operand_c_ex;
@@ -180,7 +182,7 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
   logic [ 1:0] alu_clpx_shift_ex;
 
   // Multiplier Control
-  mul_opcode_e mult_operator_ex;
+  logic [ 2:0] mult_operator_ex;
   logic [31:0] mult_operand_a_ex;
   logic [31:0] mult_operand_b_ex;
   logic [31:0] mult_operand_c_ex;
@@ -237,12 +239,12 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
 
   // CSR control
   logic        csr_access_ex;
-  csr_opcode_e csr_op_ex;
+  logic [1:0]  csr_op_ex;
   logic [23:0] mtvec, utvec;
   logic [1:0]  mtvec_mode;
   logic [1:0]  utvec_mode;
 
-  csr_opcode_e csr_op;
+  logic [1:0]  csr_op;
   csr_num_e    csr_addr;
   csr_num_e    csr_addr_int;
   logic [31:0] csr_rdata;
@@ -258,11 +260,13 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
   logic        data_req_ex;
   logic        data_load_event_ex;
   logic        data_misaligned_ex;
+  logic        apu_regfile_wb_disable_ex;
 
   logic        p_elw_start;             // Start of p.elw load (when data_req_o is sent)
   logic        p_elw_finish;            // Finish of p.elw load (when data_rvalid_i is received)
 
   logic [31:0] lsu_rdata;
+  logic data_load;
 
   // stall control
   logic        halt_if;
@@ -277,6 +281,7 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
   logic        lsu_ready_wb;
 
   logic        apu_ready_wb;
+  logic        apu_stall;
 
   // Signals between instruction core interface and pipe (if and id stages)
   logic        instr_req_int;    // Id stage asserts a req to instruction core interface
@@ -356,6 +361,8 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
   logic [31:0]                      instr_addr_pmp;
   logic                             instr_err_pmp;
 
+  logic                             apu_regfile_wb_ex;
+
   // Mux selector for vectored IRQ PC
   assign m_exc_vec_pc_mux_id = (mtvec_mode == 2'b0) ? 5'h0 : exc_cause;
   assign u_exc_vec_pc_mux_id = (utvec_mode == 2'b0) ? 5'h0 : exc_cause;
@@ -411,7 +418,7 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
     .debug_p_elw_no_sleep_i     ( debug_p_elw_no_sleep ),
 
     // WFI wake
-    .wake_from_sleep_i          ( wake_from_sleep      )
+    .wake_from_sleep_i          ( wake_from_sleep )
   );
 
 
@@ -498,8 +505,8 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
     .jump_target_ex_i    ( jump_target_ex    ),
 
     // pipeline stalls
-    .halt_if_i           ( halt_if           ),
-    .id_ready_i          ( id_ready          ),
+    .halt_if_i           ( halt_if ),//| apu_core_halt ),
+    .id_ready_i          ( id_ready ),// & ~apu_core_halt ),
 
     .if_busy_o           ( if_busy           ),
     .perf_imiss_o        ( perf_imiss        )
@@ -529,7 +536,8 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
     .APU_WOP_CPU                  ( APU_WOP_CPU          ),
     .APU_NDSFLAGS_CPU             ( APU_NDSFLAGS_CPU     ),
     .APU_NUSFLAGS_CPU             ( APU_NUSFLAGS_CPU     ),
-    .DEBUG_TRIGGER_EN             ( DEBUG_TRIGGER_EN     )
+    .DEBUG_TRIGGER_EN             ( DEBUG_TRIGGER_EN     ),
+    .GDP_NVPE                     ( GDP_NVPE             )
   )
   id_stage_i
   (
@@ -600,6 +608,7 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
 
     .regfile_alu_we_ex_o          ( regfile_alu_we_ex    ),
     .regfile_alu_waddr_ex_o       ( regfile_alu_waddr_ex ),
+    .apu_regfile_wb_ex_o          ( apu_regfile_wb_ex    ),
 
     // MUL
     .mult_operator_ex_o           ( mult_operator_ex     ), // from ID to EX stage
@@ -684,6 +693,11 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
     .data_err_i                   ( data_err_pmp         ),
     .data_err_ack_o               ( data_err_ack         ),
 
+    .data_ready_i                 ( data_rvalid_i ),
+    .data_rdata_i                 ( lsu_rdata ),
+    .data_load_o                  ( data_load ),
+    .apu_regfile_wb_disable_o     ( apu_regfile_wb_disable_ex ),
+
     // Interrupt Signals
     .irq_i                        ( irq_i                ),
     .irq_sec_i                    ( (PULP_SECURE) ? irq_sec_i : 1'b0 ),
@@ -710,7 +724,7 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
 
     // Wakeup Signal
     .wake_from_sleep_o            ( wake_from_sleep      ),
-
+    
     // Forward Signals
     .regfile_waddr_wb_i           ( regfile_waddr_fw_wb_o),  // Write address ex-wb pipeline
     .regfile_we_wb_i              ( regfile_we_wb        ),  // write enable for the register file
@@ -755,7 +769,8 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
    .APU_NARGS_CPU    ( APU_NARGS_CPU      ),
    .APU_WOP_CPU      ( APU_WOP_CPU        ),
    .APU_NDSFLAGS_CPU ( APU_NDSFLAGS_CPU   ),
-   .APU_NUSFLAGS_CPU ( APU_NUSFLAGS_CPU   )
+   .APU_NUSFLAGS_CPU ( APU_NUSFLAGS_CPU   ),
+   .GDP_NVPE         ( GDP_NVPE           )
   )
   ex_stage_i
   (
@@ -833,6 +848,7 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
 
     .lsu_en_i                   ( data_req_ex                  ),
     .lsu_rdata_i                ( lsu_rdata                    ),
+    .data_load_i                ( data_load & data_rvalid_i ),               
 
     // interface with CSRs
     .csr_access_i               ( csr_access_ex                ),
@@ -867,7 +883,11 @@ module cv32e40p_core import cv32e40p_apu_core_pkg::*;
 
     .ex_ready_o                 ( ex_ready                     ),
     .ex_valid_o                 ( ex_valid                     ),
-    .wb_ready_i                 ( lsu_ready_wb                 )
+    .wb_ready_i                 ( lsu_ready_wb                 ),
+
+    .apu_stall_o                ( apu_stall ),
+    .apu_regfile_wb_i           ( apu_regfile_wb_ex ),
+    .apu_regfile_wb_disable_i   ( apu_regfile_wb_disable_ex )
   );
 
 

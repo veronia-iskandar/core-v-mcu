@@ -82,105 +82,93 @@ parameter REGC_ZERO = 2'b11;
 
 parameter ALU_OP_WIDTH = 7;
 
-typedef enum logic [ALU_OP_WIDTH-1:0]
-{
+parameter ALU_ADD   = 7'b0011000;
+parameter ALU_SUB   = 7'b0011001;
+parameter ALU_ADDU  = 7'b0011010;
+parameter ALU_SUBU  = 7'b0011011;
+parameter ALU_ADDR  = 7'b0011100;
+parameter ALU_SUBR  = 7'b0011101;
+parameter ALU_ADDUR = 7'b0011110;
+parameter ALU_SUBUR = 7'b0011111;
 
- ALU_ADD   = 7'b0011000,
- ALU_SUB   = 7'b0011001,
- ALU_ADDU  = 7'b0011010,
- ALU_SUBU  = 7'b0011011,
- ALU_ADDR  = 7'b0011100,
- ALU_SUBR  = 7'b0011101,
- ALU_ADDUR = 7'b0011110,
- ALU_SUBUR = 7'b0011111,
-
- ALU_XOR   = 7'b0101111,
- ALU_OR    = 7'b0101110,
- ALU_AND   = 7'b0010101,
+parameter ALU_XOR   = 7'b0101111;
+parameter ALU_OR    = 7'b0101110;
+parameter ALU_AND   = 7'b0010101;
 
 // Shifts
- ALU_SRA   = 7'b0100100,
- ALU_SRL   = 7'b0100101,
- ALU_ROR   = 7'b0100110,
- ALU_SLL   = 7'b0100111,
+parameter ALU_SRA   = 7'b0100100;
+parameter ALU_SRL   = 7'b0100101;
+parameter ALU_ROR   = 7'b0100110;
+parameter ALU_SLL   = 7'b0100111;
 
 // bit manipulation
- ALU_BEXT  = 7'b0101000,
- ALU_BEXTU = 7'b0101001,
- ALU_BINS  = 7'b0101010,
- ALU_BCLR  = 7'b0101011,
- ALU_BSET  = 7'b0101100,
- ALU_BREV  = 7'b1001001,
+parameter ALU_BEXT  = 7'b0101000;
+parameter ALU_BEXTU = 7'b0101001;
+parameter ALU_BINS  = 7'b0101010;
+parameter ALU_BCLR  = 7'b0101011;
+parameter ALU_BSET  = 7'b0101100;
+parameter ALU_BREV  = 7'b1001001;
 
 // Bit counting
- ALU_FF1   = 7'b0110110,
- ALU_FL1   = 7'b0110111,
- ALU_CNT   = 7'b0110100,
- ALU_CLB   = 7'b0110101,
+parameter ALU_FF1   = 7'b0110110;
+parameter ALU_FL1   = 7'b0110111;
+parameter ALU_CNT   = 7'b0110100;
+parameter ALU_CLB   = 7'b0110101;
 
 // Sign-/zero-extensions
- ALU_EXTS  = 7'b0111110,
- ALU_EXT   = 7'b0111111,
+parameter ALU_EXTS  = 7'b0111110;
+parameter ALU_EXT   = 7'b0111111;
 
 // Comparisons
- ALU_LTS   = 7'b0000000,
- ALU_LTU   = 7'b0000001,
- ALU_LES   = 7'b0000100,
- ALU_LEU   = 7'b0000101,
- ALU_GTS   = 7'b0001000,
- ALU_GTU   = 7'b0001001,
- ALU_GES   = 7'b0001010,
- ALU_GEU   = 7'b0001011,
- ALU_EQ    = 7'b0001100,
- ALU_NE    = 7'b0001101,
+parameter ALU_LTS   = 7'b0000000;
+parameter ALU_LTU   = 7'b0000001;
+parameter ALU_LES   = 7'b0000100;
+parameter ALU_LEU   = 7'b0000101;
+parameter ALU_GTS   = 7'b0001000;
+parameter ALU_GTU   = 7'b0001001;
+parameter ALU_GES   = 7'b0001010;
+parameter ALU_GEU   = 7'b0001011;
+parameter ALU_EQ    = 7'b0001100;
+parameter ALU_NE    = 7'b0001101;
 
 // Set Lower Than operations
- ALU_SLTS  = 7'b0000010,
- ALU_SLTU  = 7'b0000011,
- ALU_SLETS = 7'b0000110,
- ALU_SLETU = 7'b0000111,
+parameter ALU_SLTS  = 7'b0000010;
+parameter ALU_SLTU  = 7'b0000011;
+parameter ALU_SLETS = 7'b0000110;
+parameter ALU_SLETU = 7'b0000111;
 
 // Absolute value
- ALU_ABS   = 7'b0010100,
- ALU_CLIP  = 7'b0010110,
- ALU_CLIPU = 7'b0010111,
+parameter ALU_ABS   = 7'b0010100;
+parameter ALU_CLIP  = 7'b0010110;
+parameter ALU_CLIPU = 7'b0010111;
 
 // Insert/extract
- ALU_INS   = 7'b0101101,
+parameter ALU_INS   = 7'b0101101;
 
 // min/max
- ALU_MIN   = 7'b0010000,
- ALU_MINU  = 7'b0010001,
- ALU_MAX   = 7'b0010010,
- ALU_MAXU  = 7'b0010011,
+parameter ALU_MIN   = 7'b0010000;
+parameter ALU_MINU  = 7'b0010001;
+parameter ALU_MAX   = 7'b0010010;
+parameter ALU_MAXU  = 7'b0010011;
 
 // div/rem
- ALU_DIVU  = 7'b0110000, // bit 0 is used for signed mode, bit 1 is used for remdiv
- ALU_DIV   = 7'b0110001, // bit 0 is used for signed mode, bit 1 is used for remdiv
- ALU_REMU  = 7'b0110010, // bit 0 is used for signed mode, bit 1 is used for remdiv
- ALU_REM   = 7'b0110011, // bit 0 is used for signed mode, bit 1 is used for remdiv
+parameter ALU_DIVU  = 7'b0110000; // bit 0 is used for signed mode, bit 1 is used for remdiv
+parameter ALU_DIV   = 7'b0110001; // bit 0 is used for signed mode, bit 1 is used for remdiv
+parameter ALU_REMU  = 7'b0110010; // bit 0 is used for signed mode, bit 1 is used for remdiv
+parameter ALU_REM   = 7'b0110011; // bit 0 is used for signed mode, bit 1 is used for remdiv
 
- ALU_SHUF  = 7'b0111010,
- ALU_SHUF2 = 7'b0111011,
- ALU_PCKLO = 7'b0111000,
- ALU_PCKHI = 7'b0111001
+parameter ALU_SHUF  = 7'b0111010;
+parameter ALU_SHUF2 = 7'b0111011;
+parameter ALU_PCKLO = 7'b0111000;
+parameter ALU_PCKHI = 7'b0111001;
 
-} alu_opcode_e;
-
-parameter MUL_OP_WIDTH = 3;
-
-typedef enum logic [MUL_OP_WIDTH-1:0]
-{
-
- MUL_MAC32 = 3'b000,
- MUL_MSU32 = 3'b001,
- MUL_I     = 3'b010,
- MUL_IR    = 3'b011,
- MUL_DOT8  = 3'b100,
- MUL_DOT16 = 3'b101,
- MUL_H     = 3'b110
-
- } mul_opcode_e;
+parameter MUL_MAC32 = 3'b000;
+parameter MUL_MSU32 = 3'b001;
+parameter MUL_I     = 3'b010;
+parameter MUL_IR    = 3'b011;
+parameter MUL_DOT8  = 3'b100;
+parameter MUL_DOT16 = 3'b101;
+parameter MUL_H     = 3'b110;
 
 // vector modes
 parameter VEC_MODE32 = 2'b00;
@@ -204,8 +192,6 @@ parameter HALTED_INDEX = 2;
 typedef enum logic [2:0] { HAVERESET = 3'b001, RUNNING = 3'b010, HALTED = 3'b100 } debug_state_e;
 
 typedef enum logic {IDLE, BRANCH_WAIT} prefetch_state_e;
-
-typedef enum logic [2:0] {IDLE_MULT, STEP0, STEP1, STEP2, FINISH} mult_state_e;
 
 /////////////////////////////////////////////////////////
 //    ____ ____    ____            _     _             //
@@ -479,20 +465,17 @@ typedef enum logic[11:0] {
   CSR_MVENDORID      = 12'hF11,
   CSR_MARCHID        = 12'hF12,
   CSR_MIMPID         = 12'hF13,
-  CSR_MHARTID        = 12'hF14
+  CSR_MHARTID        = 12'hF14,
+
+  //vector csrs
+  CSR_VLENB          = 12'hC22
 } csr_num_e;
 
 // CSR operations
-
-parameter CSR_OP_WIDTH = 2;
-
-typedef enum logic [CSR_OP_WIDTH-1:0]
-{
- CSR_OP_READ  = 2'b00,
- CSR_OP_WRITE = 2'b01,
- CSR_OP_SET   = 2'b10,
- CSR_OP_CLEAR = 2'b11
-} csr_opcode_e;
+parameter CSR_OP_READ  = 2'b00;
+parameter CSR_OP_WRITE = 2'b01;
+parameter CSR_OP_SET   = 2'b10;
+parameter CSR_OP_CLEAR = 2'b11;
 
 // CSR interrupt pending/enable bits
 parameter int unsigned CSR_MSIX_BIT      = 3;
@@ -547,6 +530,8 @@ parameter OP_A_CURRPC      = 3'b001;
 parameter OP_A_IMM         = 3'b010;
 parameter OP_A_REGB_OR_FWD = 3'b011;
 parameter OP_A_REGC_OR_FWD = 3'b100;
+parameter OP_A_RDATA       = 3'b110;
+parameter OP_A_INSTRUCTION = 3'b111; // Put instruction data into operand
 
 // immediate a selection
 parameter IMMA_Z      = 1'b0;
@@ -595,6 +580,7 @@ parameter MIMM_S3      = 1'b1;
 parameter OP_C_REGC_OR_FWD = 2'b00;
 parameter OP_C_REGB_OR_FWD = 2'b01;
 parameter OP_C_JT          = 2'b10;
+parameter OP_C_INSTRUCTION = 3'b11; // Put instruction data into operand
 
 // branch types
 parameter BRANCH_NONE = 2'b00;
