@@ -3,11 +3,9 @@
 
 # CORE-V MCU
 
-> CORE-V MCU originated from PULPissimo and is currently in change to become a
-> stand-alone project within OpenHW Group independent from PULPIssimo.
+> This a fork of the OpenHW Group CORE-V MCU repo.
 >
-> In case you should be interested to join the project please feel free to open
-> an issue, or involve yourself in any open issues/discussions.
+> This repo includes FPGA support for a cv32e40p core extended with a vector AI accelerator
 
 ## Getting Started
 
@@ -20,129 +18,62 @@ pip3 install --user -r python-requirements.txt
 Install fusesoc: https://fusesoc.readthedocs.io/en/stable/user/installation.html#ug-installation
 
 ## Building
-
-The build system uses make to capture the required steps.
-make with no argments will print a list of the current targets:
-```
-$ make
-all:            generate build scripts, custom build files, doc and sw header files
-bitstream:      generate nexysA7-100T.bit file for emulation
-model-lib:      build a Verilator model library
-lint:           run Verilator lint check
-docs:           generate documentation
-sw:             generate C header files (in ./sw)
-nexys-emul:     generate bitstream for Nexys-A7-100T emulation)
-buildsim:       build for Questa sim
-sim:            run Questa sim
-```
-
-## Building an FPGA Image
-
-To target the Nexys-A7-100T board:
-```
+To build the bitstream for Nexys A7-100T
 $ make nexys-emul
-```
 
-Make sure you have the latest Xilinx board-parts installed.
+To download the bitstream, connect your PC can to the Digilent USB-JTAG (portJ6, labeled “PROG”), power the board on, then type:
+$ make download0
 
+##Debugging
 
-Currently unsupported:
-```
-$ make genesys2
-```
-Extra note for building on ubuntu - Vivado tools from Xilinx may require a larger swap size that the system default.
-The swap size can be increased by searching for "increase swapfile in ubuntu" and add your release.
+1- Download openocd 0.11-rc2 and add it to your PATH
+https://sourceforge.net/projects/openocd/files/openocd/
 
-## Building documentation
-```
-$ make docs
-```
-The resulting documents are accessed using file ./docs/_build/html/index.html
+2- Download and install the risc-v vector support toolchain, add the binaries to your PATH. Scripts for setting this up are provided in the toolchain-setup folder
 
-### Documentation of the Debug Unit
+3-Create an exectuable file for testing on the board. Sample programs as well as the linker script link.ld are given in the programs folder. We take hello-world.c as an example: 
 
-At present the details of the debug unit are not incorporated in the main
-documentation.  The top level interface is an IEEE 1149.1 compliant JTAG Test
-Access port.  It implements the reference JTAG Debug Transport Module
-documented in Section 6.1 of the [RISC-V Debug Interface, version
-0.13.2](https://riscv.org/wp-content/uploads/2019/03/riscv-debug-release.pdf).
+riscv32-corev-elf-gcc -Os -g -fno-jump-tables -mabi=ilp32 -march=rv32imcv -c -o hello-world.o hello-world.c
+riscv32-corev-elf-gcc -Tlink.ld -o hello-world.elf hello-world.o 
 
-The RISC-V Debug Interface has many optional features.  Those enabled for the
-CORE-V MCU are documented in the [PULP Platform Debug
-Unit](https://github.com/pulp-platform/riscv-dbg).
+4- Connect the Digilent hs2 to pmod at the lower pins of JB. Switch SW0 to ON position (towards the board)
 
-## Building C header files
-```
-$ make sw
-```
-The resulting header files are located in ./sw
+5- Connect to openocd using the config file openocd-nexys-hs2.cfg: 
+$ sudo openocd -f openocd-nexys-hs2.cfg
 
-## Running Modelsim/Questasim
-```
+5- On another terminal window, start gdb
+$ riscv32-corev-elf-gdb hello-world.elf
 
-$ make buildsim sim
-```
-The 'make buildsim' creates a work library in build/openhwgroup.org_systems_core-v-mcu_0/sim-modelsim, and then 'make sim' runs the simulation.
+You should see the following output:
 
-The test bench used by the simulation is 'core_v_mcu_tb.sv'
+GNU gdb ('corev-openhw-gcc-ubuntu1804-20200913') 10.0.50.20200818-git
+Copyright (C) 2020 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Type "show copying" and "show warranty" for details.
+This GDB was configured as "--host=x86_64-pc-linux-gnu --target=riscv32-corev-elf".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+<'https://www.embecosm.com'>.
+Find the GDB manual and other documentation resources online at:
+    <http://www.gnu.org/software/gdb/documentation/>.
 
-The resulting header files are located in ./sw
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from hello-world.elf...
+(gdb)
 
-## Experimental fuseSoC Support
+10.2 Inside gdb, connect to openocd on port 3333
+target remote :3333
 
-Run Verilator lint target:
+gdb should respond with the following:
+Remote debugging using :3333
+0x1c000880 in _start ()
+(gdb)
 
-```
-fusesoc --cores-root . run --target=lint --setup --build openhwgroup.org:systems:core-v-mcu
-```
+10.3 Load the program
+(gdb) load
 
-To build Verilator as a library which can be linked into other tools (such as
-the debug server):
-
-```
-fusesoc --cores-root . run --target=model-lib --setup --build openhwgroup.org:systems:core-v-mcu
-```
-
-The library will be in the `obj_dir` subdirectory of the work root.
-
-Once can sanity check the top-level using QuestaSim:
-
-```
-fusesoc --cores-root . run --target=sim --setup --build --run openhwgroup.org:systems:core-v-mcu
-```
-
-## Contributing: Pre-commit checks
-
-If you are submitting a pull-request, it will be subject to pre-commit checks.  The two that most likely cause problems are the Verilator Lint check and the Verible format check.
-
-### Verilator model library
-
-The system will run
-```
-fusesoc --cores-root . run --target=model-lib --setup --build openhwgroup.org:systems:core-v-mcu
-```
-If your changes introduce any Verilator errors, you either need to fix these, or, if appropriate, add a rule to ignore them to `rtl/core-v-mcu/verilator.waiver`.
-
-This will create the Verilator library `Vcore_v_mcu_wrapper__ALL.a` in `build/openhwgroup.org_systems_core-v-mcu_0/model-lib-verilator/obj_dir`.
-
-### Verilator lint check
-
-The system will run
-```
-fusesoc --cores-root . run --target=lint --setup --build openhwgroup.org:systems:core-v-mcu
-```
-If your changes introduce any more Verilator lint warnings, you either need to fix these, or, if appropriate, add a rule to ignore them to `rtl/core-v-mcu/verilator.waiver`.
-
-### Verible format check
-
-Standard formating is enforced by [Verible](https://github.com/google/verible).  The command used is
-```
-util/format-verible
-```
-at the top level of the repository, which will correct the format of any file. The check will fail if any file is changed.
-
-Two important things to note.
-
-1.  If you do not have Verible installed (which is likely), then `util/format-verible` will silently do nothing.
-
-2.  You must install the correct version of Verible, currently v0.0-1051-gd4cd328.  GitHub has [prebuilt versions](https://github.com/google/verible/releases/tag/v0.0-1051-gd4cd328).  The version may change in the future.  In the event of the check failing, the details with the failure will tell you which version was used.
+10.4 To continue execution, type 
+(gdb) continue
