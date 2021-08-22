@@ -52,21 +52,35 @@ $ riscv32-corev-elf-gdb hello-world.elf
 You should see the following output:
 
 GNU gdb ('corev-openhw-gcc-ubuntu1804-20200913') 10.0.50.20200818-git
+
 Copyright (C) 2020 Free Software Foundation, Inc.
+
 License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+
 This is free software: you are free to change and redistribute it.
+
 There is NO WARRANTY, to the extent permitted by law.
+
 Type "show copying" and "show warranty" for details.
+
 This GDB was configured as "--host=x86_64-pc-linux-gnu --target=riscv32-corev-elf".
+
 Type "show configuration" for configuration details.
+
 For bug reporting instructions, please see:
+
 <'https://www.embecosm.com'>.
+
 Find the GDB manual and other documentation resources online at:
     <http://www.gnu.org/software/gdb/documentation/>.
 
+
 For help, type "help".
+
 Type "apropos word" to search for commands related to "word"...
+
 Reading symbols from hello-world.elf...
+
 (gdb)
 
 
