@@ -199,7 +199,7 @@ begin
             begin
                 // Shouldn't come to this
                 eff_vsew = vsew;
-                $error("Widening ops with VSEW=32b are not supported");
+                //$error("Widening ops with VSEW=32b are not supported");
             end
         endcase
     else

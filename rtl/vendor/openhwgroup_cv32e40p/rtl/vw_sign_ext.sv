@@ -63,8 +63,8 @@ always_comb begin
 
             if (widening[0])
                 sign_ext_c = c;
-            else if (widening[1])
-                $error("Trying to quad-widen 16b elements!");
+            //else if (widening[1])
+              //  $error("Trying to quad-widen 16b elements!");
             else
                 sign_ext_c = {{16{c[15]}}, c[15:0]};
         end

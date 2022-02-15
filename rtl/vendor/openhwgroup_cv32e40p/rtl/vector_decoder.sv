@@ -285,7 +285,7 @@ begin
                 vlsu_en_o = 1'b1;
                 vlsu_load_o = 1'b1;
                 if(mop == 3'b010) vlsu_strided_o = 1'b1;
-            end else $error("Unimplemented LOAD_FP instruction");
+            end //else $error("Unimplemented LOAD_FP instruction");
         end
         else if (major_opcode == V_MAJOR_STORE_FP)
         begin
@@ -294,7 +294,7 @@ begin
                 fix_vd_addr = 1'b1;
                 vlsu_en_o = 1'b1;
                 vlsu_store_o = 1'b1;
-            end else $error("Unimplemented STORE_FP instruction");
+            end //else $error("Unimplemented STORE_FP instruction");
         end
         else if (major_opcode == V_MAJOR_OP_V)
         begin
@@ -530,14 +530,14 @@ begin
                             operand_select = PE_OPERAND_SCALAR;
                     end
 
-                    default:
-                        $error("Unsupported vector instruction");
+                    //default:
+                        //$error("Unsupported vector instruction");
 
                 endcase
             end
         end
-        else
-            $error("Unrecognised major opcode");
+       // else
+           // $error("Unrecognised major opcode");
     end
 end
 

@@ -259,7 +259,7 @@ module vector_lsu (
                     cycle_bytes = {1'b0, vl_i, 1'b0}; // Read all bytes in 1 LOAD_CYCLE
                 end
             end
-            default : $error("Invalid VSEW"); 
+            //default : $error("Invalid VSEW"); 
         endcase
     end
 
