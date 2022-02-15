@@ -18,8 +18,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-`define BUILD_DATE 32'h20210804
-`define BUILD_TIME 32'h00124326
+`define BUILD_DATE 32'h20220215
+`define BUILD_TIME 32'h00085124
 
 //  PER_ID definitions
 `define PER_ID_UART      0
@@ -29,11 +29,11 @@
 `define PER_ID_CSI2      5
 `define PER_ID_HYPER     5
 `define PER_ID_SDIO      5
-`define PER_ID_CAM       5
-`define PER_ID_JTAG      6
-`define PER_ID_MRAM      6
-`define PER_ID_FILTER    6
-`define PER_ID_FPGA      7
+`define PER_ID_CAM       6
+`define PER_ID_JTAG      7
+`define PER_ID_MRAM      7
+`define PER_ID_FILTER    7
+`define PER_ID_FPGA      8
 `define PER_ID_EXT_PER   8
 
 //  UDMA TX channels
@@ -51,10 +51,10 @@
 `define CH_ID_TX_CSI2    6
 `define CH_ID_TX_HYPER   6
 `define CH_ID_TX_HYPER   6
-`define CH_ID_TX_JTAG    6
-`define CH_ID_TX_MRAM    6
-`define CH_ID_TX_FPGA    6
-`define CH_ID_TX_FPGA0   6
+`define CH_ID_TX_HYPER0  6
+`define CH_ID_TX_JTAG    7
+`define CH_ID_TX_MRAM    7
+`define CH_ID_TX_FPGA    7
 `define CH_ID_TX_EXT_PER 7
 
 //  UDMA RX channels
@@ -70,18 +70,28 @@
 `define CH_ID_RX_CSI2    5
 `define CH_ID_RX_HYPER   5
 `define CH_ID_RX_HYPER   5
-`define CH_ID_CAM        5
-`define CH_ID_CAM0       5
-`define CH_ID_RX_JTAG    6
-`define CH_ID_RX_MRAM    6
-`define CH_ID_RX_FPGA    6
-`define CH_ID_RX_FPGA0   6
+`define CH_ID_RX_HYPER0  5
+`define CH_ID_CAM        6
+`define CH_ID_CAM0       6
+`define CH_ID_RX_JTAG    7
+`define CH_ID_RX_MRAM    7
+`define CH_ID_RX_FPGA    7
 `define CH_ID_RX_EXT_PER 7
 
 //  Number of channels
 `define N_TX_CHANNELS  7
 `define N_RX_CHANNELS  7
 
+//  Define indices for sysio in IO bus
+`define IOINDEX_JTAG_TCK_I            0
+`define IOINDEX_JTAG_TDI_I            1
+`define IOINDEX_JTAG_TDO_O            2
+`define IOINDEX_JTAG_TMS_I            3
+`define IOINDEX_JTAG_TRST_I           4
+`define IOINDEX_REF_CLK_I             5
+`define IOINDEX_RSTN_I                6
+`define IOINDEX_STM_I                 44
+`define IOINDEX_BOOTSEL_I             45
 //  Width of perio bus
 `define N_PERIO  38
 

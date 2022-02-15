@@ -12,8 +12,23 @@ filesets:
     files:
     - openhwgroup_cv32e40p/rtl/include/cv32e40p_apu_core_pkg.sv
     - openhwgroup_cv32e40p/rtl/include/cv32e40p_fpu_pkg.sv
+    - openhwgroup_cv32e40p/rtl/accelerator_pkg.sv
+    - openhwgroup_cv32e40p/rtl/accelerator_top.sv
+    - openhwgroup_cv32e40p/rtl/arith_stage.sv
+    - openhwgroup_cv32e40p/rtl/bit_ext.sv
+    - openhwgroup_cv32e40p/rtl/pe_32b.sv
+    - openhwgroup_cv32e40p/rtl/relu_bound.sv
+    - openhwgroup_cv32e40p/rtl/sat_unit.sv
+    - openhwgroup_cv32e40p/rtl/scalar_replicate.sv
+    - openhwgroup_cv32e40p/rtl/vector_csrs.sv
+    - openhwgroup_cv32e40p/rtl/vector_decoder.sv
+    - openhwgroup_cv32e40p/rtl/vector_registers.sv
+    - openhwgroup_cv32e40p/rtl/vw_sign_ext.sv
+    - openhwgroup_cv32e40p/rtl/vector_lsu.sv
+    - openhwgroup_cv32e40p/rtl/temporary_reg.sv
     - openhwgroup_cv32e40p/rtl/include/cv32e40p_pkg.sv
     - openhwgroup_cv32e40p/rtl/cv32e40p_alu.sv
+    - openhwgroup_cv32e40p/rtl/cv32e40n_data_xbar.sv
     - openhwgroup_cv32e40p/rtl/cv32e40p_alu_div.sv
     - openhwgroup_cv32e40p/rtl/cv32e40p_ff_one.sv
     - openhwgroup_cv32e40p/rtl/cv32e40p_popcnt.sv

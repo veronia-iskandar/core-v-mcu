@@ -15,7 +15,8 @@ module fc_subsystem #(
     parameter N_EXT_PERF_COUNTERS = 1,
     parameter EVENT_ID_WIDTH      = 8,
     parameter PER_ID_WIDTH        = 32,
-    parameter NB_HWPE_PORTS       = 4
+    parameter NB_HWPE_PORTS       = 4,
+    parameter GDP_NVPE          = 1
 ) (
     input logic clk_i,
     input logic rst_ni,
@@ -69,6 +70,36 @@ module fc_subsystem #(
   logic       core_data_we;
   logic [3:0] core_data_be;
   logic is_scm_instr_req, is_scm_data_req;
+  
+      // Data crossbar slave 1
+    logic                         data_req_xbr_s1;
+    logic                         data_gnt_xbr_s1;
+    logic                         data_rvalid_xbr_s1;
+    logic [31:0]                  data_addr_xbr_s1;
+    logic                         data_we_xbr_s1;
+    logic [3:0]                   data_be_xbr_s1;
+    logic [31:0]                  data_rdata_xbr_s1;
+    logic [31:0]                  data_wdata_xbr_s1;
+    // Data crossbar master 1 (CPU)
+    logic                         data_req_xbr_m1;
+    logic                         data_gnt_xbr_m1;
+    logic                         data_rvalid_xbr_m1;
+    logic [31:0]                  data_addr_xbr_m1;
+    logic                         data_we_xbr_m1;
+    logic [3:0]                   data_be_xbr_m1;
+    logic [31:0]                  data_rdata_xbr_m1;
+    logic [31:0]                  data_wdata_xbr_m1;
+    // Data crossbar master 2 (NVPE)
+    logic                         data_req_xbr_m2;
+    logic                         data_gnt_xbr_m2;
+    logic                         data_rvalid_xbr_m2;
+    logic [31:0]                  data_addr_xbr_m2;
+    logic                         data_we_xbr_m2;
+    logic [3:0]                   data_be_xbr_m2;
+    logic [31:0]                  data_rdata_xbr_m2;
+    logic [31:0]                  data_wdata_xbr_m2;
+
+    logic core_halt;
 
 
   logic [                31:0]       r_int;
@@ -76,9 +107,13 @@ module fc_subsystem #(
 
   // APU Core to FP Wrapper
   logic                              apu_req;
-  logic [   APU_NARGS_CPU-1:0][31:0] apu_operands;
-  logic [     APU_WOP_CPU-1:0]       apu_op;
-  logic [APU_NDSFLAGS_CPU-1:0]       apu_flags;
+  logic [  2:0][31:0] apu_operands;
+  logic [     5:0]       apu_op;
+  logic [14:0]       apu_flags;
+
+
+  logic [31:0]                  apu_result;
+  logic [4:0]                   apu_flags_r; //check width
 
 
   // APU FP Wrapper to Core
@@ -98,14 +133,14 @@ module fc_subsystem #(
   //********************************************************
   //************ CORE DEMUX (TCDM vs L2) *******************
   //********************************************************
-  assign l2_data_master.req    = core_data_req;
-  assign l2_data_master.add    = core_data_addr;
-  assign l2_data_master.wen    = ~core_data_we;
-  assign l2_data_master.wdata  = core_data_wdata;
-  assign l2_data_master.be     = core_data_be;
-  assign core_data_gnt         = l2_data_master.gnt;
-  assign core_data_rvalid      = l2_data_master.r_valid;
-  assign core_data_rdata       = l2_data_master.r_rdata;
+  assign l2_data_master.req    = data_req_xbr_s1;
+  assign l2_data_master.add    = data_addr_xbr_s1;
+  assign l2_data_master.wen    = ~data_we_xbr_s1;
+  assign l2_data_master.wdata  = data_wdata_xbr_s1;
+  assign l2_data_master.be     = data_be_xbr_s1;
+  assign data_gnt_xbr_s1         = l2_data_master.gnt;
+  assign data_rvalid_xbr_s1      = l2_data_master.r_valid;
+  assign data_rdata_xbr_s1       = l2_data_master.r_rdata;
   assign core_data_err         = l2_data_master.r_opc;
 
 
@@ -140,7 +175,8 @@ module fc_subsystem #(
 
   cv32e40p_core #(
       .FPU(`USE_FPU),
-      .PULP_XPULP(1)
+      .PULP_XPULP(1),
+      .GDP_NVPE         (GDP_NVPE)
   ) lFC_CORE (
       .clk_i              (clk_i),
       .rst_ni             (rst_ni),
@@ -160,14 +196,14 @@ module fc_subsystem #(
       .instr_rvalid_i(core_instr_rvalid),
 
       // Data memory interface
-      .data_addr_o  (core_data_addr),
-      .data_req_o   (core_data_req),
-      .data_be_o    (core_data_be),
-      .data_rdata_i (core_data_rdata),
-      .data_we_o    (core_data_we),
-      .data_gnt_i   (core_data_gnt),
-      .data_wdata_o (core_data_wdata),
-      .data_rvalid_i(core_data_rvalid),
+      .data_addr_o  (data_addr_xbr_m1),
+      .data_req_o   (data_req_xbr_m1),
+      .data_be_o    (data_be_xbr_m1),
+      .data_rdata_i (data_rdata_xbr_m1),
+      .data_we_o    (data_we_xbr_m1),
+      .data_gnt_i   (data_gnt_xbr_m1),
+      .data_wdata_o (data_wdata_xbr_m1),
+      .data_rvalid_i(data_rvalid_xbr_m1),
 
       // apu-interconnect
       // handshake signals
@@ -177,8 +213,8 @@ module fc_subsystem #(
       .apu_op_o      (apu_op),
       .apu_flags_o   (apu_flags),
       .apu_rvalid_i  (apu_rvalid),
-      .apu_result_i  (apu_rdata),
-      .apu_flags_i   (apu_rflags),
+      .apu_result_i  (apu_result),
+      .apu_flags_i   (apu_flags_r),
 
 
       .irq_i    (r_int),
@@ -190,21 +226,63 @@ module fc_subsystem #(
       .debug_running_o  (),
       .debug_halted_o   (stoptimer_o),
       .fetch_enable_i   (fetch_en_i),
-      .core_sleep_o     ()
+      .core_sleep_o     (core_sleep_o),
+      .apu_core_halt          ( core_halt )
   );
   assign supervisor_mode_o = 1'b1;
 
-  cv32e40p_fp_wrapper fp_wrapper_i (
-      .clk_i         (clk_i),
-      .rst_ni        (rst_ni),
-      .apu_req_i     (apu_req),
-      .apu_gnt_o     (apu_gnt),
-      .apu_operands_i(apu_operands),
-      .apu_op_i      (apu_op),
-      .apu_flags_i   (apu_flags),
-      .apu_rvalid_o  (apu_rvalid),
-      .apu_rdata_o   (apu_rdata),
-      .apu_rflags_o  (apu_rflags)
-  );
+    cv32e40n_data_xbar xbar_mux
+       (.clk_i                  ( clk_i                     ),
+        .rst_ni                 ( rst_ni                    ),
+
+        .data_req_xbr_s1_o      ( data_req_xbr_s1           ),
+        .data_gnt_xbr_s1_i      ( data_gnt_xbr_s1           ),
+        .data_rvalid_xbr_s1_i   ( data_rvalid_xbr_s1        ),
+        .data_addr_xbr_s1_o     ( data_addr_xbr_s1          ),
+        .data_we_xbr_s1_o       ( data_we_xbr_s1            ),
+        .data_be_xbr_s1_o       ( data_be_xbr_s1            ),
+        .data_rdata_xbr_s1_i    ( data_rdata_xbr_s1         ),
+        .data_wdata_xbr_s1_o    ( data_wdata_xbr_s1         ),
+
+        .data_req_xbr_m1_i      ( data_req_xbr_m1           ),
+        .data_gnt_xbr_m1_o      ( data_gnt_xbr_m1           ),
+        .data_rvalid_xbr_m1_o   ( data_rvalid_xbr_m1        ),
+        .data_addr_xbr_m1_i     ( data_addr_xbr_m1          ),
+        .data_we_xbr_m1_i       ( data_we_xbr_m1            ),
+        .data_be_xbr_m1_i       ( data_be_xbr_m1            ),
+        .data_rdata_xbr_m1_o    ( data_rdata_xbr_m1         ),
+        .data_wdata_xbr_m1_i    ( data_wdata_xbr_m1         ),
+
+        .data_req_xbr_m2_i      ( data_req_xbr_m2           ),
+        .data_gnt_xbr_m2_o      ( data_gnt_xbr_m2           ),
+        .data_rvalid_xbr_m2_o   ( data_rvalid_xbr_m2        ),
+        .data_addr_xbr_m2_i     ( data_addr_xbr_m2          ),
+        .data_we_xbr_m2_i       ( data_we_xbr_m2            ),
+        .data_be_xbr_m2_i       ( data_be_xbr_m2            ),
+        .data_rdata_xbr_m2_o    ( data_rdata_xbr_m2         ),
+        .data_wdata_xbr_m2_i    ( data_wdata_xbr_m2         ));
+
+    accelerator_top a_top
+       (.apu_result(apu_result),
+        .apu_flags_o(apu_flags_r),
+        .apu_gnt(apu_gnt),
+        .apu_rvalid(apu_rvalid),
+        .clk(clk_i),
+        .n_reset(rst_ni),
+        .apu_req(apu_req),
+        .apu_operands_i(apu_operands),
+        .apu_op(apu_op),
+        .apu_flags_i(apu_flags),
+        .data_req_o(data_req_xbr_m2),
+        .data_gnt_i(data_gnt_xbr_m2),
+        .data_rvalid_i(data_rvalid_xbr_m2),
+        .data_we_o(data_we_xbr_m2),
+        .data_be_o(data_be_xbr_m2),
+        .data_addr_o(data_addr_xbr_m2),
+        .data_wdata_o(data_wdata_xbr_m2),
+        .data_rdata_i(data_rdata_xbr_m2),
+        .core_halt_o(core_halt));
+
 
 endmodule
+

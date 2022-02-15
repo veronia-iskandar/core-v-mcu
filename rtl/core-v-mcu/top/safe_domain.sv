@@ -8,33 +8,26 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-`include "pulp_soc_defines.sv"
+`include "pulp_soc_defines.svh"
 `include "pulp_peripheral_defines.svh"
 
-module safe_domain #(
-    parameter int unsigned FLL_DATA_WIDTH = 32,
-    parameter int unsigned FLL_ADDR_WIDTH = 32
-) (
-    input  logic ref_clk_i,
-    output logic slow_clk_o,
-    output logic efpga_clk_o,
-    input  logic bootsel_i,
+module safe_domain (
+    //    input  logic ref_clk_i,
+    //    output logic slow_clk_o,
+    //    output logic efpga_clk_o,
+    //    input  logic bootsel_i,
     input  logic rst_ni,
     output logic rst_no,
 
-    output logic test_clk_o,
-    output logic test_mode_o,
-    output logic mode_select_o,
-    output logic dft_cg_enable_o,
 
     //**********************************************************
     //*** PERIPHERALS SIGNALS **********************************
     //**********************************************************
 
     // PAD CONTROL REGISTER
-    input  logic [`N_IO-1:0][`NBIT_PADMUX-1:0] pad_mux_i,
-    input  logic [`N_IO-1:0][`NBIT_PADCFG-1:0] pad_cfg_i,
-    output logic [`N_IO-1:0][`NBIT_PADCFG-1:0] pad_cfg_o,
+    input logic [`N_IO-1:0][`NBIT_PADMUX-1:0] pad_mux_i,
+    //    input  logic [`N_IO-1:0][`NBIT_PADCFG-1:0] pad_cfg_i,
+    //    output logic [`N_IO-1:0][`NBIT_PADCFG-1:0] pad_cfg_o,
 
     // IOS
     output logic [`N_IO-1:0] io_out_o,
@@ -60,9 +53,9 @@ module safe_domain #(
 
   logic                    s_test_clk;
 
-  logic                    s_rtc_int;
-  logic                    s_gpio_wake;
-  logic                    s_rstn_sync;
+  //  logic                    s_rtc_int;
+  //  logic                    s_gpio_wake;
+  //  logic                    s_rstn_sync;
   logic                    s_rstn;
 
 
@@ -80,8 +73,6 @@ module safe_domain #(
       //*** PERIPHERALS SIGNALS ********************************************//
       //********************************************************************//
       .pad_mux_i(pad_mux_i),
-      .pad_cfg_i(pad_cfg_i),
-      .pad_cfg_o(pad_cfg_o),
 
       .io_out_o(io_out_o),
       .io_in_i (io_in_i),
@@ -100,8 +91,9 @@ module safe_domain #(
       .fpgaio_oe_i (fpgaio_oe_i)
   );
 
-
+  /*
 `ifndef PULP_FPGA_EMUL
+  assign slow_clk_o = ref_clk_i;
   rstgen i_rstgen (
       .clk_i      (ref_clk_i),
       .rst_ni     (s_rstn),
@@ -130,13 +122,9 @@ module safe_domain #(
   );
 `endif
 
+*/
+  assign s_rstn = rst_ni;
+  assign rst_no = s_rstn;
 
-  assign s_rstn          = rst_ni;
-  assign rst_no          = s_rstn;
-
-  assign test_clk_o      = 1'b0;
-  assign dft_cg_enable_o = 1'b0;
-  assign test_mode_o     = 1'b0;
-  assign mode_select_o   = 1'b0;
 
 endmodule  // safe_domain
