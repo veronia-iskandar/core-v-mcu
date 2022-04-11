@@ -77,3 +77,7 @@ set_clock_groups -asynchronous -group [get_clocks -of_objects [get_pins i_core_v
 
 # Create asynchronous clock group between JTAG TCK and SoC clock.
 set_clock_groups -asynchronous -group [get_clocks -of_objects [get_pins i_core_v_mcu/pad_jtag_tck]] -group [get_clocks -of_objects [get_pins i_core_v_mcu/i_soc_domain_i/i_clk_rst_gen/clk_soc_o]]
+
+set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets i_core_v_mcu/i_soc_domain/fc_subsystem_i/a_top/vlsu0/tr/E[0]]
+set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets i_core_v_mcu/i_soc_domain/fc_subsystem_i/a_top/vlsu0/byte_track[0]_i_1_n_0]
+

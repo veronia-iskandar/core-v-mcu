@@ -217,3 +217,6 @@ set_property -dict {PACKAGE_PIN R28 IOSTANDARD LVCMOS33} [get_ports pad_sdio_clk
 # Genesys 2 has a quad SPI flash
 set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 4 [current_design]
 
+set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets i_core_v_mcu/i_soc_domain/fc_subsystem_i/a_top/vlsu0/tr/E[0]]
+set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets i_core_v_mcu/i_soc_domain/fc_subsystem_i/a_top/vlsu0/byte_track[0]_i_1_n_0]
+

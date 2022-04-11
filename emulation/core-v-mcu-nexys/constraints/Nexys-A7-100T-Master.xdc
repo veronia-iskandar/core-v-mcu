@@ -209,3 +209,7 @@
 #set_property -dict { PACKAGE_PIN L14   IOSTANDARD LVCMOS33 } [get_ports { QSPI_DQ[2] }]; #IO_L2P_T0_D02_14 Sch=qspi_dq[2]
 #set_property -dict { PACKAGE_PIN M14   IOSTANDARD LVCMOS33 } [get_ports { QSPI_DQ[3] }]; #IO_L2N_T0_D03_14 Sch=qspi_dq[3]
 #set_property -dict { PACKAGE_PIN L13   IOSTANDARD LVCMOS33 } [get_ports { QSPI_CSN }]; #IO_L6P_T0_FCS_B_14 Sch=qspi_csn
+
+set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets i_core_v_mcu/i_soc_domain/fc_subsystem_i/a_top/vlsu0/tr/E[0]]
+set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets i_core_v_mcu/i_soc_domain/fc_subsystem_i/a_top/vlsu0/byte_track[0]_i_1_n_0]
+
